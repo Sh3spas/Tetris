@@ -1,6 +1,6 @@
 **POUR COMPILER**
 
-"gcc main.c pieces.c -o tetris `sdl2-config --cflags --libs`"
+gcc main.c pieces.c -o tetris `sdl2-config --cflags --libs``
 
 **POUR AJOUTER DES MODIFS :**
 
