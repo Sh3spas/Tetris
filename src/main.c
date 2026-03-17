@@ -6,6 +6,20 @@
 
 int terrain[HAUT_GRILLE][LARG_GRILLE] = {0};
 
+bool estPositionValide(Piece p, int terrain[HAUT_GRILLE][LARG_GRILLE]) {
+    for (int i = 0; i < 4; i++) {
+        int tx = p.x + PIECES[p.type][p.rotation][i][0];
+        int ty = p.y + PIECES[p.type][p.rotation][i][1];
+
+        // Murs et Sol
+        if (tx < 0 || tx >= LARG_GRILLE || ty >= HAUT_GRILLE) return false;
+        
+        // Blocs déjà posés (si ty < 0, la pièce est encore au-dessus de l'écran, on ignore)
+        if (ty >= 0 && terrain[ty][tx] != VIDE) return false;
+    }
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     srand(time(NULL));
     if (SDL_Init(SDL_INIT_VIDEO) < 0) return 1;
@@ -97,16 +111,3 @@ int main(int argc, char* argv[]) {
 }
 
 
-bool estPositionValide(Piece p, int terrain[HAUT_GRILLE][LARG_GRILLE]) {
-    for (int i = 0; i < 4; i++) {
-        int tx = p.x + PIECES[p.type][p.rotation][i][0];
-        int ty = p.y + PIECES[p.type][p.rotation][i][1];
-
-        // Murs et Sol
-        if (tx < 0 || tx >= LARG_GRILLE || ty >= HAUT_GRILLE) return false;
-        
-        // Blocs déjà posés (si ty < 0, la pièce est encore au-dessus de l'écran, on ignore)
-        if (ty >= 0 && terrain[ty][tx] != VIDE) return false;
-    }
-    return true;
-}
