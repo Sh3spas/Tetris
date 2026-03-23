@@ -1,113 +1,139 @@
-#include <stdio.h>
 #include "tetris.h"
-
 #include <time.h>
-#include <stdlib.h>
-
-int terrain[HAUT_GRILLE][LARG_GRILLE] = {0};
-
-bool estPositionValide(Piece p, int terrain[HAUT_GRILLE][LARG_GRILLE]) {
-    for (int i = 0; i < 4; i++) {
-        int tx = p.x + PIECES[p.type][p.rotation][i][0];
-        int ty = p.y + PIECES[p.type][p.rotation][i][1];
-
-        // Murs et Sol
-        if (tx < 0 || tx >= LARG_GRILLE || ty >= HAUT_GRILLE) return false;
-        
-        // Blocs déjà posés (si ty < 0, la pièce est encore au-dessus de l'écran, on ignore)
-        if (ty >= 0 && terrain[ty][tx] != VIDE) return false;
-    }
-    return true;
-}
 
 int main(int argc, char* argv[]) {
     srand(time(NULL));
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) return 1;
+    SDL_Init(SDL_INIT_VIDEO);
+    initTTF();
 
-    SDL_Window* window = SDL_CreateWindow("Tetris C", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
-                                          LARG_GRILLE * TAILLE_BLOC, HAUT_GRILLE * TAILLE_BLOC, 0);
+    SDL_Window* window = SDL_CreateWindow("TETRIS PRO", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
+                                          FENETRE_LARG, FENETRE_HAUT, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    // Initialisation de la première pièce
-    Piece actuelle = { (rand() % 7) + 1, 0, 3, 0 }; 
-
+    // --- VARIABLES INITIALES ---
+    int terrain[HAUT_GRILLE][LARG_GRILLE] = {0};
+    Piece actuelle, prochaine; // Ajout de "prochaine"
+    EtatJeu etat = MENU;
+    Difficulte diff = NORMAL; // Difficulté par défaut
+    
+    int score = 0, highScore = 0, selection = 0;
     Uint32 dernierTemps = SDL_GetTicks();
-    Uint32 delaiChute = 500; // 500ms entre chaque chute
+    Uint32 delai = 500;
     bool running = true;
-    SDL_Event event;
 
     while (running) {
-        Uint32 tempsActuel = SDL_GetTicks();
-
+        SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) running = false;
             
-            // On peut déjà ajouter un peu de mouvement horizontal pour tester
             if (event.type == SDL_KEYDOWN) {
-                Piece test = actuelle;
-                if (event.key.keysym.sym == SDLK_LEFT) test.x--;
-                if (event.key.keysym.sym == SDLK_RIGHT) test.x++;
-                if (event.key.keysym.sym == SDLK_UP) test.rotation = (test.rotation + 1) % 4;
-
-                if (estPositionValide(test, terrain)) actuelle = test;
+                // 1. GESTION DU MENU PRINCIPAL
+                if (etat == MENU) {
+                    switch(event.key.keysym.sym) {
+                        case SDLK_UP: selection = (selection - 1 + 3) % 3; break;
+                        case SDLK_DOWN: selection = (selection + 1) % 3; break;
+                        case SDLK_RETURN:
+                            if (selection == 0) { // START
+                                memset(terrain, 0, sizeof(terrain));
+                                score = 0;
+                                // Appliquer le délai selon la difficulté choisie
+                                if (diff == FACILE) delai = 800;
+                                else if (diff == NORMAL) delai = 500;
+                                else delai = 250; // DIFFICILE
+                                
+                                actuelle = genererNouvellePiece();
+                                prochaine = genererNouvellePiece();
+                                etat = JEU;
+                            } 
+                            else if (selection == 1) etat = SETTINGS;
+                            else if (selection == 2) running = false;
+                            break;
+                    }
+                }
+                // 2. GESTION DES RÉGLAGES (Difficulté)
+                else if (etat == SETTINGS) {
+                    switch(event.key.keysym.sym) {
+                        case SDLK_ESCAPE: etat = MENU; break;
+                        case SDLK_UP:     diff = (diff - 1 + 3) % 3; break;
+                        case SDLK_DOWN:   diff = (diff + 1) % 3; break;
+                    }
+                }
+                // 3. GESTION DE LA PAUSE / GAMEOVER
+                else if (etat == PAUSE && event.key.keysym.sym == SDLK_p) etat = JEU;
+                else if (etat == GAMEOVER && event.key.keysym.sym == SDLK_RETURN) etat = MENU;
+                
+                // 4. GESTION DU JEU EN COURS
+                else if (etat == JEU) {
+                    if (event.key.keysym.sym == SDLK_p) etat = PAUSE;
+                    else {
+                        Piece test = actuelle;
+                        switch (event.key.keysym.sym) {
+                            case SDLK_LEFT:  test.x--; break;
+                            case SDLK_RIGHT: test.x++; break;
+                            case SDLK_UP:    test.rotation = (test.rotation + 1) % 4; break;
+                            case SDLK_DOWN:  test.y++; break;
+                            case SDLK_SPACE: // HARD DROP
+                                while (estPositionValide(actuelle, terrain)) actuelle.y++;
+                                actuelle.y--;
+                                figerPiece(actuelle, terrain);
+                                score += nettoyerLignes(terrain, renderer) * 100;
+                                actuelle = prochaine;
+                                prochaine = genererNouvellePiece();
+                                if (!estPositionValide(actuelle, terrain)) {
+                                    if (score > highScore) highScore = score;
+                                    etat = GAMEOVER;
+                                }
+                                dernierTemps = SDL_GetTicks();
+                                goto fin_evenement;
+                        }
+                        if (estPositionValide(test, terrain)) actuelle = test;
+                    }
+                }
             }
+            fin_evenement: ;
         }
 
-        // --- Logique de chute ---
-        if (tempsActuel > dernierTemps + delaiChute) {
+        // --- LOGIQUE DE CHUTE AUTOMATIQUE ---
+        if (etat == JEU && SDL_GetTicks() > dernierTemps + delai) {
             Piece test = actuelle;
             test.y++;
-
             if (estPositionValide(test, terrain)) {
                 actuelle = test;
             } else {
-                // La pièce a touché quelque chose : on la fixe dans le terrain
-                for (int i = 0; i < 4; i++) {
-                    int tx = actuelle.x + PIECES[actuelle.type][actuelle.rotation][i][0];
-                    int ty = actuelle.y + PIECES[actuelle.type][actuelle.rotation][i][1];
-                    if (ty >= 0) terrain[ty][tx] = actuelle.type;
-                }
-                // On génère une nouvelle pièce
-                actuelle.type = (rand() % 7) + 1;
-                actuelle.rotation = 0;
-                actuelle.x = 3;
-                actuelle.y = 0;
+                figerPiece(actuelle, terrain);
+                int n = nettoyerLignes(terrain, renderer);
+                score += n * 100;
                 
-                // Game Over rudimentaire
+                // Augmentation de la vitesse progressive
+                if (n > 0) {
+                    int reduction = (diff == FACILE) ? 10 : (diff == NORMAL) ? 20 : 35;
+                    int seuilMin = (diff == DIFFICILE) ? 60 : 100;
+                    if (delai > seuilMin) delai -= reduction;
+                }
+
+                actuelle = prochaine;
+                prochaine = genererNouvellePiece();
                 if (!estPositionValide(actuelle, terrain)) {
-                    // Reset du terrain pour le test
-                    for(int y=0; y<HAUT_GRILLE; y++) for(int x=0; x<LARG_GRILLE; x++) terrain[y][x] = 0;
+                    if (score > highScore) highScore = score;
+                    etat = GAMEOVER;
                 }
             }
-            dernierTemps = tempsActuel;
+            dernierTemps = SDL_GetTicks();
         }
 
-        // --- Rendu ---
-        SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
-        SDL_RenderClear(renderer);
-
-        // Dessiner le terrain (blocs posés)
-        for (int y = 0; y < HAUT_GRILLE; y++) {
-            for (int x = 0; x < LARG_GRILLE; x++) {
-                if (terrain[y][x] != VIDE) {
-                    SDL_Rect r = { x * TAILLE_BLOC, y * TAILLE_BLOC, TAILLE_BLOC - 1, TAILLE_BLOC - 1 };
-                    SDL_SetRenderDrawColor(renderer, COULEURS[terrain[y][x]].r, COULEURS[terrain[y][x]].g, COULEURS[terrain[y][x]].b, 255);
-                    SDL_RenderFillRect(renderer, &r);
-                }
-            }
+        // --- RENDU GRAPHIQUE ---
+        switch (etat) {
+            case MENU:     dessinerMenu(renderer, selection, highScore); break;
+            case SETTINGS: dessinerSettings(renderer, diff); break; // Ajout du paramètre diff
+            case JEU: dessinerTout(renderer, terrain, actuelle, prochaine, score, highScore); break;
+            case PAUSE:    dessinerPause(renderer); break;
+            case GAMEOVER: dessinerGameOver(renderer, score); break;
         }
-
-        // Dessiner la pièce qui tombe
-        SDL_SetRenderDrawColor(renderer, COULEURS[actuelle.type].r, COULEURS[actuelle.type].g, COULEURS[actuelle.type].b, 255);
-        for (int i = 0; i < 4; i++) {
-            SDL_Rect r = { (actuelle.x + PIECES[actuelle.type][actuelle.rotation][i][0]) * TAILLE_BLOC, 
-                           (actuelle.y + PIECES[actuelle.type][actuelle.rotation][i][1]) * TAILLE_BLOC, 
-                           TAILLE_BLOC - 1, TAILLE_BLOC - 1 };
-            SDL_RenderFillRect(renderer, &r);
-        }
-
-        SDL_RenderPresent(renderer);
     }
+
+    quitterTTF();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
 }
-
-
