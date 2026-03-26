@@ -28,7 +28,6 @@ int nettoyerLignes(int terrain[HAUT_GRILLE][LARG_GRILLE], SDL_Renderer* renderer
     bool pleines[HAUT_GRILLE] = {false};
     bool auMoinsUne = false;
 
-    // 1. Détection
     for (int y = 0; y < HAUT_GRILLE; y++) {
         bool lignePleine = true;
         for (int x = 0; x < LARG_GRILLE; x++) {
@@ -38,42 +37,43 @@ int nettoyerLignes(int terrain[HAUT_GRILLE][LARG_GRILLE], SDL_Renderer* renderer
             pleines[y] = true;
             auMoinsUne = true;
             lignesSupprimees++;
+            creerParticulesLigne(y, COULEURS[terrain[y][0]]);
         }
     }
 
-    // 2. Flash collectif
     if (auMoinsUne) {
-        for (int f = 0; f < 3; f++) { // Clignote 3 fois
+        // On ne baisse pas la force si elle est déjà plus haute (ex: Hard Drop)
+        extern int forceTremblement;
+        if (forceTremblement < 15) declencherTremblement(15); 
+
+        // Animation de flash
+        for (int f = 0; f < 6; f++) {
+            updateTremblement(); // On recalcule le décalage à chaque étape du flash !
+            
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-            for (int y = 0; y < HAUT_GRILLE; y++) {
-                if (pleines[y]) {
-                    SDL_Rect r = { 0, y * TAILLE_BLOC, LARG_GRILLE * TAILLE_BLOC, TAILLE_BLOC };
-                    SDL_RenderFillRect(renderer, &r);
+            if (f % 2 == 0) {
+                for (int y = 0; y < HAUT_GRILLE; y++) {
+                    if (pleines[y]) {
+                        SDL_Rect r = { OFFSET_X + decalageX, y * TAILLE_BLOC + decalageY, LARG_GRILLE * TAILLE_BLOC, TAILLE_BLOC };
+                        SDL_RenderFillRect(renderer, &r);
+                    }
                 }
             }
+            updateEtDessinerParticules(renderer);
             SDL_RenderPresent(renderer);
-            SDL_Delay(50);
-            
-            // On redessine le fond noir entre les flashs pour l'effet clignotant
-            SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
-            SDL_RenderPresent(renderer);
-            SDL_Delay(30);
+            SDL_Delay(40);
         }
-    }
-
-    // 3. Suppression réelle
-    for (int y = HAUT_GRILLE - 1; y >= 0; y--) {
-        if (pleines[y]) {
-            for (int k = y; k > 0; k--) {
-                for (int x = 0; x < LARG_GRILLE; x++) terrain[k][x] = terrain[k - 1][x];
+        
+        // Suppression réelle (ton code actuel est bon ici)
+        for (int y = HAUT_GRILLE - 1; y >= 0; y--) {
+            if (pleines[y]) {
+                for (int k = y; k > 0; k--) 
+                    for (int x = 0; x < LARG_GRILLE; x++) terrain[k][x] = terrain[k - 1][x];
+                for (int x = 0; x < LARG_GRILLE; x++) terrain[0][x] = VIDE;
+                for (int i = y; i > 0; i--) pleines[i] = pleines[i-1];
+                pleines[0] = false;
+                y++; 
             }
-            for (int x = 0; x < LARG_GRILLE; x++) terrain[0][x] = VIDE;
-            
-            // Une ligne a été supprimée, on doit décaler notre tableau de "pleines"
-            // ou simplement recommencer la vérification sur cet index.
-            for (int i = y; i > 0; i--) pleines[i] = pleines[i-1];
-            pleines[0] = false;
-            y++; 
         }
     }
     return lignesSupprimees;

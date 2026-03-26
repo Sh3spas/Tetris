@@ -6,17 +6,18 @@ int main(int argc, char* argv[]) {
     SDL_Init(SDL_INIT_VIDEO);
     initTTF();
 
-    SDL_Window* window = SDL_CreateWindow("TETRIS PRO", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
+    SDL_Window* window = SDL_CreateWindow("TETRIS C-PRO", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
                                           FENETRE_LARG, FENETRE_HAUT, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    // --- VARIABLES INITIALES ---
+    // --- VARIABLES DE JEU ---
     int terrain[HAUT_GRILLE][LARG_GRILLE] = {0};
-    Piece actuelle, prochaine; // Ajout de "prochaine"
+    Piece actuelle, prochaine;
     EtatJeu etat = MENU;
-    Difficulte diff = NORMAL; // Difficulté par défaut
+    Difficulte diff = NORMAL; 
     
     int score = 0, highScore = 0, selection = 0;
+    int level = 1, combo = 0, lignesTotales = 0;
     Uint32 dernierTemps = SDL_GetTicks();
     Uint32 delai = 500;
     bool running = true;
@@ -27,19 +28,18 @@ int main(int argc, char* argv[]) {
             if (event.type == SDL_QUIT) running = false;
             
             if (event.type == SDL_KEYDOWN) {
-                // 1. GESTION DU MENU PRINCIPAL
+                // 1. MENU
                 if (etat == MENU) {
                     switch(event.key.keysym.sym) {
                         case SDLK_UP: selection = (selection - 1 + 3) % 3; break;
                         case SDLK_DOWN: selection = (selection + 1) % 3; break;
                         case SDLK_RETURN:
-                            if (selection == 0) { // START
+                            if (selection == 0) { 
                                 memset(terrain, 0, sizeof(terrain));
-                                score = 0;
-                                // Appliquer le délai selon la difficulté choisie
+                                score = 0; level = 1; combo = 0; lignesTotales = 0;
                                 if (diff == FACILE) delai = 800;
                                 else if (diff == NORMAL) delai = 500;
-                                else delai = 250; // DIFFICILE
+                                else delai = 250; 
                                 
                                 actuelle = genererNouvellePiece();
                                 prochaine = genererNouvellePiece();
@@ -50,19 +50,17 @@ int main(int argc, char* argv[]) {
                             break;
                     }
                 }
-                // 2. GESTION DES RÉGLAGES (Difficulté)
+                // 2. RÉGLAGES
                 else if (etat == SETTINGS) {
-                    switch(event.key.keysym.sym) {
-                        case SDLK_ESCAPE: etat = MENU; break;
-                        case SDLK_UP:     diff = (diff - 1 + 3) % 3; break;
-                        case SDLK_DOWN:   diff = (diff + 1) % 3; break;
-                    }
+                    if (event.key.keysym.sym == SDLK_ESCAPE) etat = MENU;
+                    else if (event.key.keysym.sym == SDLK_UP) diff = (diff - 1 + 3) % 3;
+                    else if (event.key.keysym.sym == SDLK_DOWN) diff = (diff + 1) % 3;
                 }
-                // 3. GESTION DE LA PAUSE / GAMEOVER
+                // 3. PAUSE / GAMEOVER
                 else if (etat == PAUSE && event.key.keysym.sym == SDLK_p) etat = JEU;
                 else if (etat == GAMEOVER && event.key.keysym.sym == SDLK_RETURN) etat = MENU;
                 
-                // 4. GESTION DU JEU EN COURS
+                // 4. JEU EN COURS
                 else if (etat == JEU) {
                     if (event.key.keysym.sym == SDLK_p) etat = PAUSE;
                     else {
@@ -75,8 +73,24 @@ int main(int argc, char* argv[]) {
                             case SDLK_SPACE: // HARD DROP
                                 while (estPositionValide(actuelle, terrain)) actuelle.y++;
                                 actuelle.y--;
+                                declencherTremblement(25); // Secousse maximum
                                 figerPiece(actuelle, terrain);
-                                score += nettoyerLignes(terrain, renderer) * 100;
+                                
+                                // --- LOGIQUE DE SCORING ---
+                                int n = nettoyerLignes(terrain, renderer);
+                                if (n > 0) {
+                                    int base = (n == 1) ? 100 : (n == 2) ? 300 : (n == 3) ? 500 : 1200;
+                                    score += (base * level) + (combo * 50 * level);
+                                    combo++;
+                                    lignesTotales += n;
+                                    if (lignesTotales >= level * 10) {
+                                        level++;
+                                        if (delai > 60) delai -= (diff == DIFFICILE) ? 40 : 25;
+                                    }
+                                } else {
+                                    combo = 0;
+                                }
+
                                 actuelle = prochaine;
                                 prochaine = genererNouvellePiece();
                                 if (!estPositionValide(actuelle, terrain)) {
@@ -93,7 +107,7 @@ int main(int argc, char* argv[]) {
             fin_evenement: ;
         }
 
-        // --- LOGIQUE DE CHUTE AUTOMATIQUE ---
+        // --- CHUTE AUTOMATIQUE ---
         if (etat == JEU && SDL_GetTicks() > dernierTemps + delai) {
             Piece test = actuelle;
             test.y++;
@@ -102,13 +116,18 @@ int main(int argc, char* argv[]) {
             } else {
                 figerPiece(actuelle, terrain);
                 int n = nettoyerLignes(terrain, renderer);
-                score += n * 100;
                 
-                // Augmentation de la vitesse progressive
                 if (n > 0) {
-                    int reduction = (diff == FACILE) ? 10 : (diff == NORMAL) ? 20 : 35;
-                    int seuilMin = (diff == DIFFICILE) ? 60 : 100;
-                    if (delai > seuilMin) delai -= reduction;
+                    int base = (n == 1) ? 100 : (n == 2) ? 300 : (n == 3) ? 500 : 1200;
+                    score += (base * level) + (combo * 50 * level);
+                    combo++;
+                    lignesTotales += n;
+                    if (lignesTotales >= level * 10) {
+                        level++;
+                        if (delai > 60) delai -= (diff == DIFFICILE) ? 40 : 25;
+                    }
+                } else {
+                    combo = 0;
                 }
 
                 actuelle = prochaine;
@@ -121,11 +140,11 @@ int main(int argc, char* argv[]) {
             dernierTemps = SDL_GetTicks();
         }
 
-        // --- RENDU GRAPHIQUE ---
+        // --- DESSIN ---
         switch (etat) {
             case MENU:     dessinerMenu(renderer, selection, highScore); break;
-            case SETTINGS: dessinerSettings(renderer, diff); break; // Ajout du paramètre diff
-            case JEU: dessinerTout(renderer, terrain, actuelle, prochaine, score, highScore); break;
+            case SETTINGS: dessinerSettings(renderer, diff); break;
+            case JEU:      dessinerTout(renderer, terrain, actuelle, prochaine, score, highScore, level, combo); break;
             case PAUSE:    dessinerPause(renderer); break;
             case GAMEOVER: dessinerGameOver(renderer, score); break;
         }

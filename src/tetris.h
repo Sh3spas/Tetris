@@ -42,11 +42,32 @@ int nettoyerLignes(int terrain[HAUT_GRILLE][LARG_GRILLE], SDL_Renderer* renderer
 
 // Rendu
 void initTTF();
-void dessinerTout(SDL_Renderer* renderer, int terrain[HAUT_GRILLE][LARG_GRILLE], Piece actuelle, Piece prochaine, int score, int highScore);
 void dessinerMenu(SDL_Renderer* renderer, int selection, int highScore);
 void dessinerPause(SDL_Renderer* renderer);
 void dessinerGameOver(SDL_Renderer* renderer, int score);
 void dessinerSettings(SDL_Renderer* renderer, Difficulte diffActuelle);
 void quitterTTF();
+
+typedef struct {
+    float x, y;
+    float vx, vy;
+    int vie;
+    SDL_Color couleur;
+} Particule;
+
+#define MAX_PARTICULES 200
+
+// Fonctions d'effets
+void declencherTremblement(int force);
+void creerParticulesLigne(int y, SDL_Color couleur);
+void updateEtDessinerParticules(SDL_Renderer* renderer);
+
+// Variables globales pour le tremblement (accessibles via extern ou gérées dans render.c)
+extern int decalageX, decalageY;
+
+void dessinerTout(SDL_Renderer* renderer, int terrain[HAUT_GRILLE][LARG_GRILLE], Piece actuelle, Piece prochaine, int score, int highScore, int level, int combo);
+
+// On ajoute une fonction pour mettre à jour le tremblement proprement
+void updateTremblement();
 
 #endif
