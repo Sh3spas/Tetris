@@ -1,6 +1,6 @@
 **POUR COMPILER**
 
-''' gcc main.c pieces.c logic.c render.c -o tetris `sdl2-config --cflags --libs` -lSDL2_ttf '''
+``` gcc main.c pieces.c logic.c render.c -o tetris `sdl2-config --cflags --libs` -lSDL2_ttf ```
 
 **POUR AJOUTER DES MODIFS :**
 
