@@ -8,6 +8,14 @@ int forceTremblement = 0;
 int frameLevelUp = 0;
 Particule particules[MAX_PARTICULES];
 
+Etoile etoiles[MAX_ETOILES];
+bool etoilesInitialisees = false;
+
+SDL_Texture *textureNyanCat = NULL;
+bool nyanCatActif = false;
+Uint32 nyanCatDepart = 0;
+int nyanCatDuree = 1200; // durée en ms
+
 const SDL_Color COULEURS_FOND[] = {
     {15, 15, 35, 255}, // Bleu nuit
     {40, 15, 15, 255}, // Rouge
@@ -24,6 +32,76 @@ void initTTF()
     font = TTF_OpenFont("arcade.ttf", 26); // Taille légèrement réduite pour mieux fiter
     if (!font)
         printf("Erreur : arcade.ttf introuvable !\n");
+}
+
+void initImages(SDL_Renderer* renderer)
+{
+    int flags = IMG_INIT_PNG;
+    if ((IMG_Init(flags) & flags) == 0)
+    {
+        printf("Erreur IMG_Init : %s\n", IMG_GetError());
+        return;
+    }
+
+    SDL_Surface *surface = IMG_Load("nyan_cat.png");
+    if (!surface)
+    {
+        printf("Erreur chargement nyan_cat.png : %s\n", IMG_GetError());
+        return;
+    }
+
+    textureNyanCat = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_FreeSurface(surface);
+
+    if (!textureNyanCat)
+        printf("Erreur création texture Nyan Cat : %s\n", SDL_GetError());
+}
+
+void quitterImages()
+{
+    if (textureNyanCat)
+    {
+        SDL_DestroyTexture(textureNyanCat);
+        textureNyanCat = NULL;
+    }
+
+    IMG_Quit();
+}
+
+void declencherAnimationNyanCat()
+{
+    nyanCatActif = true;
+    nyanCatDepart = SDL_GetTicks();
+}
+
+void dessinerNyanCat(SDL_Renderer* renderer)
+{
+    if (!nyanCatActif || !textureNyanCat)
+        return;
+
+    Uint32 maintenant = SDL_GetTicks();
+    Uint32 ecoule = maintenant - nyanCatDepart;
+
+    if (ecoule >= (Uint32)nyanCatDuree)
+    {
+        nyanCatActif = false;
+        return;
+    }
+
+    float progression = (float)ecoule / (float)nyanCatDuree;
+
+    int largeur = 220;
+    int hauteur = 120;
+
+    int x = (int)(-largeur + progression * (FENETRE_LARG + largeur));
+    int y = 80;
+
+    SDL_Rect dest = {x, y, largeur, hauteur};
+
+    SDL_SetTextureBlendMode(textureNyanCat, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureAlphaMod(textureNyanCat, 170);
+
+    SDL_RenderCopy(renderer, textureNyanCat, NULL, &dest);
 }
 
 void dessinerTexte(SDL_Renderer *renderer, const char *texte, int x, int y, SDL_Color couleur, bool centre)
@@ -88,17 +166,104 @@ void updateEtDessinerParticules(SDL_Renderer *renderer)
     }
 }
 
+void initialiserEtoiles()
+{
+    for (int i = 0; i < MAX_ETOILES; i++)
+    {
+        etoiles[i].x = rand() % FENETRE_LARG;
+        etoiles[i].y = rand() % FENETRE_HAUT;
+
+        etoiles[i].couche = rand() % 3; // 0 = loin, 1 = milieu, 2 = proche
+        etoiles[i].vitesse = 0.15f + (etoiles[i].couche * 0.20f);
+        etoiles[i].taille = 1 + etoiles[i].couche;
+        etoiles[i].alphaBase = 80 + rand() % 120;
+        etoiles[i].phase = rand() % 200;
+    }
+
+    etoilesInitialisees = true;
+}
+
+void dessinerFondEtoiles(SDL_Renderer *renderer, int level)
+{
+    if (!etoilesInitialisees)
+        initialiserEtoiles();
+
+    Uint32 temps = SDL_GetTicks();
+
+    // Fond sombre légèrement teinté selon le niveau
+    Uint8 r = 8;
+    Uint8 g = 8;
+    Uint8 b = 20 + ((level - 1) % 6) * 4;
+
+    SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+    SDL_RenderClear(renderer);
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    for (int i = 0; i < MAX_ETOILES; i++)
+    {
+        // Défilement vertical lent
+        etoiles[i].y += etoiles[i].vitesse;
+
+        if (etoiles[i].y > FENETRE_HAUT)
+        {
+            etoiles[i].y = -etoiles[i].taille;
+            etoiles[i].x = rand() % FENETRE_LARG;
+        }
+
+        // Petit drift horizontal pour éviter un mouvement trop rigide
+        float drift = 0.0f;
+        if (etoiles[i].couche == 1) drift = 0.05f;
+        if (etoiles[i].couche == 2) drift = 0.10f;
+
+        etoiles[i].x += drift;
+        if (etoiles[i].x >= FENETRE_LARG)
+            etoiles[i].x = 0;
+
+        // Scintillement simple sans lib math
+        Uint8 alpha = etoiles[i].alphaBase;
+        int clignotement = ((temps / 12) + etoiles[i].phase) % 60;
+
+        if (clignotement < 8)
+            alpha = 255;
+        else if (clignotement < 16)
+            alpha = etoiles[i].alphaBase + 60;
+
+        if (alpha > 255) alpha = 255;
+
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, alpha);
+
+        SDL_Rect star = {
+            (int)etoiles[i].x,
+            (int)etoiles[i].y,
+            etoiles[i].taille,
+            etoiles[i].taille
+        };
+        SDL_RenderFillRect(renderer, &star);
+
+        // Petite croix lumineuse sur certaines grosses étoiles
+        if (etoiles[i].couche == 2 && clignotement < 6)
+        {
+            int sx = (int)etoiles[i].x;
+            int sy = (int)etoiles[i].y;
+            SDL_RenderDrawLine(renderer, sx - 2, sy, sx + 2, sy);
+            SDL_RenderDrawLine(renderer, sx, sy - 2, sx, sy + 2);
+        }
+    }
+}
+
 void dessinerTout(SDL_Renderer *renderer, int terrain[HAUT_GRILLE][LARG_GRILLE], Piece actuelle, Piece prochaine, int score, int highScore, int level, int combo)
 {
     updateTremblement();
 
+    // Fond spatial animé
+    dessinerFondEtoiles(renderer, level);
+
     // CRUCIAL : On force le mode de mélange ici pour éviter le bug après pause
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-    SDL_Color fond = COULEURS_FOND[(level - 1) % 7];
-    SDL_SetRenderDrawColor(renderer, fond.r, fond.g, fond.b, 255);
-    SDL_RenderClear(renderer);
-
+    // Nyan Cat en arrière-plan lors de la suppression d'une ligne
+    dessinerNyanCat(renderer);
     // --- ZONE DE JEU (OFFSET_X = 30) ---
     // On dessine un fond légèrement plus sombre pour le terrain
     SDL_Rect aireJeu = {OFFSET_X + decalageX, decalageY, LARG_GRILLE * TAILLE_BLOC, HAUT_GRILLE * TAILLE_BLOC};

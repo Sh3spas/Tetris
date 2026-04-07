@@ -42,6 +42,7 @@ int nettoyerLignes(int terrain[HAUT_GRILLE][LARG_GRILLE], SDL_Renderer* renderer
     }
 
     if (auMoinsUne) {
+        declencherAnimationNyanCat();
         // On ne baisse pas la force si elle est déjà plus haute (ex: Hard Drop)
         extern int forceTremblement;
         if (forceTremblement < 15) declencherTremblement(15); 

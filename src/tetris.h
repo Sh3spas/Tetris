@@ -5,6 +5,7 @@
 #include <SDL2/SDL_ttf.h>
 #include <stdbool.h>
 #include <string.h>
+#include <SDL2/SDL_image.h>
 
 // Dimensions de la fenêtre
 #define FENETRE_LARG 600
@@ -15,6 +16,17 @@
 #define HAUT_GRILLE 20
 #define TAILLE_BLOC 30
 #define OFFSET_X 30 // Marge à gauche pour la grille
+
+#define MAX_ETOILES 120
+
+typedef struct {
+    float x, y;
+    float vitesse;
+    int taille;
+    Uint8 alphaBase;
+    int couche;
+    int phase;
+} Etoile;
 
 // Ajoute ceci dans les enum
 typedef enum { FACILE, NORMAL, DIFFICILE } Difficulte;
@@ -69,5 +81,13 @@ void dessinerTout(SDL_Renderer* renderer, int terrain[HAUT_GRILLE][LARG_GRILLE],
 
 // On ajoute une fonction pour mettre à jour le tremblement proprement
 void updateTremblement();
+
+void initialiserEtoiles();
+void dessinerFondEtoiles(SDL_Renderer* renderer, int level);
+
+void initImages(SDL_Renderer* renderer);
+void quitterImages();
+void declencherAnimationNyanCat();
+void dessinerNyanCat(SDL_Renderer* renderer);
 
 #endif

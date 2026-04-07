@@ -9,6 +9,7 @@ int main(int argc, char* argv[]) {
     SDL_Window* window = SDL_CreateWindow("TETRIS C-PRO", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
                                           FENETRE_LARG, FENETRE_HAUT, 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    initImages(renderer);
 
     // --- VARIABLES DE JEU ---
     int terrain[HAUT_GRILLE][LARG_GRILLE] = {0};
@@ -149,7 +150,7 @@ int main(int argc, char* argv[]) {
             case GAMEOVER: dessinerGameOver(renderer, score); break;
         }
     }
-
+    quitterImages();
     quitterTTF();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
